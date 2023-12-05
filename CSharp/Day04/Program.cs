@@ -2,7 +2,7 @@
 {
     internal class Program
     {
-        public record Card(int Id, List<int> Winning, List<int> Mine);
+        public record Card(int Id, List<int> Winning, List<int> My);
 
         static void Main()
         {
@@ -18,10 +18,10 @@
             var points = 0;
             foreach (var card in cards)
             {
-                var match = card.Mine.Count(x => card.Winning.Contains(x));
-                if (match != 0)
+                var matches = card.My.Count(x => card.Winning.Contains(x));
+                if (matches != 0)
                 {
-                    points += 1 << (match - 1);
+                    points += 1 << (matches - 1);
                 }
             }
             Console.WriteLine($"Puzzle 1 - total points: {points}");
@@ -37,7 +37,7 @@
 
             foreach (var card in cards)
             {
-                var winningCount = card.Mine.Count(x => card.Winning.Contains(x));
+                var winningCount = card.My.Count(x => card.Winning.Contains(x));
                 for (var j = 1; j <= winningCount; j++)
                 {
                     copies[card.Id + j] += copies[card.Id];
@@ -47,7 +47,7 @@
             Console.WriteLine($"Puzzle 2 - total scratchcards: {copies.Values.Sum()}");
         }
 
-        private static List<Card> ParseInput(string[] input)
+        private static List<Card> ParseInput(IEnumerable<string> input)
         {
             var result = new List<Card>();
 
