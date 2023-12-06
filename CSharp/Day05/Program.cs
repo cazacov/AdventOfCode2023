@@ -1,4 +1,6 @@
-﻿namespace Day05
+﻿using static System.String;
+
+namespace Day05
 {
     internal class Program
     {
@@ -152,7 +154,6 @@
             }
             return result;
         }
-
         
 
         private static (List<long> seeds, List<MapSet> mapset) ParseInput(string[] input)
@@ -160,7 +161,6 @@
             var seeds = input[0].Substring(7).Split(" ").Select(long.Parse).ToList();
 
             var mapset = new List<MapSet>();
-
             var lineNr = 2;
             while (lineNr < input.Length)
             {
@@ -174,7 +174,7 @@
                 while (lineNr < input.Length)
                 {
                     var line = input[lineNr];
-                    if (line == String.Empty)
+                    if (line == Empty)
                     {
                         lineNr += 1;
                         break;
