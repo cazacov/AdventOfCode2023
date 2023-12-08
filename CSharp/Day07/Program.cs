@@ -1,6 +1,6 @@
 ﻿namespace Day07
 {
-    internal partial class Program
+    internal class Program
     {
 
         static void Main()
@@ -20,7 +20,7 @@
             long result = 0;
 
             hands.Sort(Comparison);
-            for (int i = 0; i < hands.Count; i++)
+            for (var i = 0; i < hands.Count; i++)
             {
                 var rank = i + 1;
                 result += hands[i].Bid * rank;
