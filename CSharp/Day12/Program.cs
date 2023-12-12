@@ -1,5 +1,5 @@
-﻿using System.ComponentModel;
-using System.Text;
+﻿using System.Runtime.InteropServices.JavaScript;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Day12
 {
@@ -45,26 +45,49 @@ namespace Day12
             var strIndex = 0;
             var datIndex = 0;
 
-            return Check(springs.ToArray(), data.ToArray(), strIndex, datIndex, false, false);
+            return DoCheck(springs.ToArray(), data.ToArray(), strIndex, datIndex, false, false);
         }
 
-        private static long Check(char[] springs, int[] data, int strIndex, int datIndex, bool hashExpected, bool dotExpected)
+        private static long DoCheck(char[] springs, int[] data, int strIndex, int datIndex, bool b, bool b1)
         {
+            var exits = new int[data.Length];
 
-            if (strIndex == springs.Length && datIndex < data.Length)
+            var sum = 0;
+            for (var j = data.Length - 2; j >= 0; j--)
+            {
+                sum += data[j+1] + 1;
+                exits[j] = springs.Length - sum + 1;
+            }
+            exits[data.Length-1] = springs.Length;
+
+            return Check(ref springs, ref data, strIndex, datIndex, false, false, ref exits);
+        }
+
+        private static long Check(ref char[] springs, ref int[] data, int strIndex, int datIndex, bool hashExpected,
+            bool dotExpected, ref int[] exits)
+        {
+            if (strIndex == springs.Length)
+            {
+                if (datIndex == data.Length)
+                {
+                    if (hashExpected)
+                    {
+                        return 0;
+                    }
+                    else
+                        return 1;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+
+            if (datIndex < data.Length && strIndex > exits[datIndex])
             {
                 return 0;
             }
 
-            if (strIndex == springs.Length && datIndex == data.Length)
-            {
-                if (hashExpected )
-                {
-                    return 0;
-                }
-                else
-                    return 1;
-            }
 
             if (hashExpected && springs[strIndex] == '.')
             {
@@ -83,11 +106,6 @@ namespace Day12
                 dotExpected = false;
             }
 
-            if (strIndex == springs.Length && datIndex < data.Length - 1)
-            {
-                return 0;
-            }
-
             if (strIndex == springs.Length)
             {
                 if (datIndex == data.Length)
@@ -98,11 +116,6 @@ namespace Day12
             }
 
             if (springs[strIndex] == '#' && datIndex >= data.Length)
-            {
-                return 0;
-            }
-
-            if (springs[strIndex] == '#' && dotExpected)
             {
                 return 0;
             }
@@ -125,166 +138,34 @@ namespace Day12
                 var res = 0L;
                 if (data[datIndex] == 0)
                 {
-                    res = Check(springs, data, strIndex, datIndex + 1, false, true);
+                    res = Check(ref springs, ref data, strIndex, datIndex + 1, false, true, ref exits);
                 }
                 else
                 {
-                    res = Check(springs, data, strIndex, datIndex, true, false);
+                    res = Check(ref springs, ref data, strIndex, datIndex, true, false, ref exits);
                 }
+
                 data[datIndex] += hashCount;
                 return res;
             }
 
             // ?
 
-            if (springs[strIndex] == '?')
+            var result = 0L;
+            if (!hashExpected)
             {
-                var result = 0L;
-                if (!hashExpected)
-                {
-                    springs[strIndex] = '.';
-                    result += Check(springs, data, strIndex, datIndex, hashExpected, dotExpected);
-                }
-
-                if (!dotExpected)
-                {
-                    springs[strIndex] = '#';
-                    result += Check(springs, data, strIndex, datIndex, hashExpected, dotExpected);
-                }
-
-                springs[strIndex] = '?';
-                return result;
+                springs[strIndex] = '.';
+                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
             }
 
-            throw new Exception("OMG");
-        }
-
-        private static long CountArrangements2(string line)
-        {
-            long res = 0;
-
-            var parts = line.Split(' ');
-            var springs = parts[0];
-            var d = parts[1].Split(",").Select(int.Parse).ToList();
-
-            springs = Simplify(springs + "?" + springs + "?" + springs + "?" + springs + "?" + springs);
-
-            var data = new List<int>();
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d);
-
-            var groups = new List<string[]>();
-            var i = 0;
-            var str = "";
-            var grLen = 0;
-
-            while (i < springs.Length)
+            if (!dotExpected)
             {
-                if (springs[i] == '.' || springs[i] == '#')
-                {
-                    str += springs[i];
-                    grLen++;
-                    i++;
-                    continue;
-                }
-
-                if (grLen > 0)
-                {
-                    groups.Add(new string[1] {str});
-                    str = String.Empty;
-                    grLen = 0;
-                }
-
-                var len = 0;
-                while (i < springs.Length && springs[i] == '?') 
-                {
-                    len++;
-                    i++;
-                }
-                groups.Add(UnknownVarinats(len));
+                springs[strIndex] = '#';
+                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
             }
 
-            if (grLen > 0)
-            {
-                groups.Add(new string[1] { str });
-            }
-
-            int[] indices = new int[groups.Count];
-
-            StringBuilder buildy = new StringBuilder();
-
-            bool stop = false;
-            do
-            {
-                buildy.Clear();
-
-                if (indices[0] == 5 && indices[2] == 5 && indices[4] == 5 && indices[6] == 5 && indices[8] == 5)
-                {
-                    Console.WriteLine("!");
-                }
-
-                for (int groupIndex  = 0; groupIndex < groups.Count; groupIndex++)
-                {
-                    buildy.Append(groups[groupIndex][indices[groupIndex]]);
-                }
-
-                if (MatchesPattern2(buildy.ToString(), data))
-                {
-                    res++;
-                }
-
-                // Next index
-                var j = groups.Count - 1;
-                while (j >= 0)
-                {
-                    if (indices[j] == groups[j].Length - 1)
-                    {
-                        indices[j] = 0;
-                        if (j == 0)
-                        {
-                            stop = true;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        indices[j] += 1;
-                        break;
-                    }
-                    j--;
-                }
-            } while (!stop);
-
-            return res;
-        }
-
-        static Dictionary<int, string[]> cache = new Dictionary<int, string[]>();
-        private static string[] UnknownVarinats(int len)
-        {
-            if (cache.ContainsKey(len))
-            {
-                return cache[len];
-            }
-
-            List<string> variants = new List<string>();
-
-            for (int i = 0; i < (1 << len); i++)
-            {
-                var variant = "";
-                for (int j = 0; j < len; j++)
-                {
-                    variant += (i & (1 << j)) == 0 ? '.' : '#';
-                }
-                variants.Add(Simplify(variant));
-            }
-
-            variants = variants.Distinct().ToList();
-            cache[len] = variants.ToArray();
-
-            return cache[len];
+            springs[strIndex] = '?';
+            return result;
         }
 
         private static string Simplify(string variant)
@@ -378,47 +259,6 @@ namespace Day12
             }
 
             if (!springs[n - 1])
-            {
-                ends.Add(n);
-            }
-
-
-            if (data.Count != starts.Count || data.Count != ends.Count)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < data.Count; i++)
-            {
-                if (data[i] != ends[i] - starts[i])
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private static bool MatchesPattern2(string springs, List<int> data)
-        {
-            List<int> starts = new List<int>();
-            List<int> ends = new List<int>();
-
-            var n = springs.Length;
-
-            for (int i = 0; i < n; i++)
-            {
-                if (springs[i] == '#'
-                    && (i == 0 || (i > 0 && springs[i - 1] == '.'))
-                   )
-                    starts.Add(i);
-
-                if (springs[i] == '.' && (i > 0 && springs[i - 1] == '#'))
-                {
-                    ends.Add(i);
-                }
-            }
-
-            if (springs[n - 1] == '#')
             {
                 ends.Add(n);
             }
