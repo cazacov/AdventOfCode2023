@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.JavaScript;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+﻿using System.Diagnostics;
 
 namespace Day12
 {
@@ -10,25 +9,99 @@ namespace Day12
         static void Main()
         {
             var lines = File.ReadAllLines("input.txt");
-            //Puzzle1(lines);
+            Puzzle1(lines);
+            ReadCache();
             Puzzle2(lines);
+        }
+
+
+        private static void ReadCache()
+        {
+            cache = new Dictionary<string, long>();
+            var lines = File.ReadAllLines("cache.txt");
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split(" - ");
+                var str = parts[1];
+                var result = Int64.Parse(parts[2]);
+                cache[str] = result;
+            }
+
+            lines = File.ReadAllLines("cache2.txt");
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split(" - ");
+                var str = parts[2];
+                var result = Int64.Parse(parts[3]);
+                cache[str] = result;
+            }
+
+            lines = File.ReadAllLines("cache1.txt");
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split(" - ");
+                var str = parts[2];
+                var result = Int64.Parse(parts[3]);
+                cache[str] = result;
+            }
+
+            Console.WriteLine($"Cached: {cache.Count}");
+        }
+
+        public class Descriptor(int lineNo, string line, long matched, long time)
+        {
+            public int lineNo { get; set; } = lineNo;
+            public string line { get; set; } = line;
+            public long matched { get; set; } = matched;
+            public long time { get; set; } = time;
         }
 
         private static void Puzzle2(string[] lines)
         {
+            var sw = new Stopwatch();
+
+            var descriptors = new List<Descriptor>();
+
             var res = 0L;
-            foreach (var line in lines)
+            for (int i = 0; i < lines.Length; i++)
             {
-                Console.Write(line + "\t");
-                var matches = CountArrangements3(line);
-                Console.WriteLine(matches);
-                res += matches;
+                descriptors.Add(new Descriptor(i, lines[i], 0, 0));
             }
-            Console.WriteLine(res);
+
+            long count = 0;
+
+            Parallel.ForEach(descriptors, item =>
+                {
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    item.matched = CountArrangements3(item.line);
+                    sw.Stop();
+                    item.time = sw.ElapsedMilliseconds;
+                    count++;
+                    if (sw.ElapsedMilliseconds > 1)
+                    {
+                        Console.WriteLine($"{count} - {item.lineNo} - {item.line} - {item.matched} - {item.time} - XXXXXXXXXXXXXXXXXXXXXX");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"{count} - {item.lineNo} - {item.line} - {item.matched} - {item.time} - cache");
+                    }
+                    
+                }
+            );
+            Console.WriteLine(descriptors.Sum(item => item.matched));
         }
 
         private static long CountArrangements3(string line)
         {
+            if (cache.ContainsKey(line))
+            {
+                return cache[line];
+            }
+
             var parts = line.Split(' ');
             var springs = parts[0];
             var d = parts[1].Split(",").Select(int.Parse).ToList();
@@ -41,6 +114,29 @@ namespace Day12
             data.AddRange(d);
             data.AddRange(d);
             data.AddRange(d); 
+
+            var strIndex = 0;
+            var datIndex = 0;
+
+            return DoCheck(springs.ToArray(), data.ToArray(), strIndex, datIndex, false, false);
+        }
+
+        private static long CountArrangements2(string line)
+        {
+            if (cache.ContainsKey(line))
+            {
+                return cache[line];
+            }
+
+            var parts = line.Split(' ');
+            var springs = parts[0];
+            var d = parts[1].Split(",").Select(int.Parse).ToList();
+
+            springs = Simplify(springs);
+
+            var data = new List<int>();
+            data.AddRange(d);
+            
 
             var strIndex = 0;
             var datIndex = 0;
@@ -99,6 +195,17 @@ namespace Day12
                 return 0;
             }
 
+            if (datIndex == data.Length)
+            {
+                for (var pos = strIndex; pos < springs.Length; pos++)
+                {
+                    if (springs[pos] == '#')
+                    {
+                        return 0;
+                    }
+                }
+            }
+
             // skip dots
             while (strIndex < springs.Length && springs[strIndex] == '.')
             {
@@ -115,10 +222,7 @@ namespace Day12
                 else return 0;
             }
 
-            if (springs[strIndex] == '#' && datIndex >= data.Length)
-            {
-                return 0;
-            }
+            
 
             if (springs[strIndex] == '#')
             {
@@ -152,18 +256,16 @@ namespace Day12
             // ?
 
             var result = 0L;
-            if (!hashExpected)
-            {
-                springs[strIndex] = '.';
-                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
-            }
-
             if (!dotExpected)
             {
                 springs[strIndex] = '#';
                 result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
             }
-
+            if (!hashExpected)
+            {
+                springs[strIndex] = '.';
+                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
+            }
             springs[strIndex] = '?';
             return result;
         }
@@ -181,13 +283,14 @@ namespace Day12
             }
         }
 
+        private static Dictionary<string, long> cache = new Dictionary<string, long>();
 
         private static void Puzzle1(string[] lines)
         {
             var res = 0L;
             foreach (var line in lines)
             {
-                res += CountArrangements(line);
+                res += CountArrangements2(line);
             }
             Console.WriteLine(res);
         }
