@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿// 1087844863967
+
 
 namespace Day12
 {
@@ -9,297 +10,319 @@ namespace Day12
         static void Main()
         {
             var lines = File.ReadAllLines("input.txt");
-            Puzzle1(lines);
-            ReadCache();
-            Puzzle2(lines);
+
+            var records = ParseInput(lines);
+
+            Puzzle1(records);
+            Puzzle2(records);
         }
 
-
-        private static void ReadCache()
+        private static List<Record> ParseInput(string[] lines)
         {
-            cache = new Dictionary<string, long>();
-            var lines = File.ReadAllLines("cache.txt");
+            var result = new List<Record>();
 
             foreach (var line in lines)
             {
-                var parts = line.Split(" - ");
-                var str = parts[1];
-                var result = Int64.Parse(parts[2]);
-                cache[str] = result;
+                var parts = line.Split(' ');
+                var springs = parts[0];
+                var data = parts[1].Split(",").Select(int.Parse).ToList();
+                result.Add(new Record(springs, data));
             }
-
-            lines = File.ReadAllLines("cache2.txt");
-
-            foreach (var line in lines)
-            {
-                var parts = line.Split(" - ");
-                var str = parts[2];
-                var result = Int64.Parse(parts[3]);
-                cache[str] = result;
-            }
-
-            lines = File.ReadAllLines("cache1.txt");
-
-            foreach (var line in lines)
-            {
-                var parts = line.Split(" - ");
-                var str = parts[2];
-                var result = Int64.Parse(parts[3]);
-                cache[str] = result;
-            }
-
-            Console.WriteLine($"Cached: {cache.Count}");
+            return result;
         }
 
-        public class Descriptor(int lineNo, string line, long matched, long time)
+        public record Record(string springs, List<int> data);
+
+        public class Descriptor(int lineNo, string lineSource, string line, List<int> data)
         {
             public int lineNo { get; set; } = lineNo;
+            public string lineSource { get; set; } = lineSource;
             public string line { get; set; } = line;
-            public long matched { get; set; } = matched;
-            public long time { get; set; } = time;
+
+            public List<int> Data { get; set; } = data;
+            public long matched { get; set; }
         }
 
-        private static void Puzzle2(string[] lines)
+        private static void Puzzle2(List<Record> records)
         {
-            var sw = new Stopwatch();
+            var descriptors = new List<Descriptor>();
+
+            var res = 0L;
+            for (int i = 0; i < records.Count; i++)
+            {
+                var record = records[i];
+                var springs = record.springs + "?" + record.springs + "?" + record.springs + "?" + record.springs +
+                              "?" + record.springs;
+                var data = new List<int>();
+                data.AddRange(record.data);
+                data.AddRange(record.data);
+                data.AddRange(record.data);
+                data.AddRange(record.data);
+                data.AddRange(record.data);
+
+                descriptors.Add(new Descriptor(i,  record.springs, springs, data));
+            }
+
+ 
+            long count = 0;
+            Parallel.ForEach(descriptors, item =>
+                {
+                    CountArrangements4(item);
+                    Console.WriteLine($"{count, 3} - {item.lineNo, 3} - {item.lineSource, -35} {item.matched,15}");
+                    count++;
+                }
+            );
+            Console.WriteLine($"Puzzle 2: {descriptors.Sum(item => item.matched)}");
+        }
+
+        public record Span(string Pattern, long Cardinality);
+        
+        private static long CountArrangements4(Descriptor descriptor)
+        {
+            var springs = descriptor.line;
+            var data = descriptor.Data;
+
+            var spans = new List<List<Span>>();
+
+            string current = String.Empty;
+            int strIndex = 0;
+            while (strIndex < springs.Length)
+            {
+                if (springs[strIndex] != '?')
+                {
+                    current += springs[strIndex];
+                    strIndex++;
+                    continue;
+                }
+
+                if (current != String.Empty)
+                {
+                    spans.Add(new List<Span>() {new Span(current, 1)});
+                    current = String.Empty;
+                }
+
+                var unknownLen = 0;
+                var unknownStart = strIndex;
+                while (strIndex < springs.Length && springs[strIndex] == '?')
+                {
+                    unknownLen++;
+                    strIndex++;
+                }
+
+                char prevChar = '.';
+                char nextChar = '.';
+                if (unknownStart > 0)
+                {
+                    prevChar = springs[unknownStart - 1];
+                }
+
+                if (unknownStart + unknownLen < springs.Length)
+                {
+                    nextChar = springs[unknownStart + unknownLen];
+                }
+                spans.Add(UnknownSpans(unknownLen, prevChar, nextChar));
+            }
+
+            if (current != String.Empty)
+            {
+                spans.Add(new List<Span>() { new Span(current, 1) });
+            }
+
+            int spanIndex = 0;
+            int datIndex = 0;
+
+            
+            var result = CheckPlus(spans, data, spanIndex, datIndex, false, false);
+            descriptor.matched = result;
+            return result;
+        }
+
+        private static long CheckPlus(List<List<Span>> spans, List<int> data, int spanIndex, int datIndex,
+            bool startWithHash, bool startWithDot)
+        {
+            if (spanIndex == spans.Count)
+            {
+                if (datIndex != data.Count)
+                {
+                    return 0;
+                }
+                return 1;
+            }
+
+
+            long result = 0;
+            
+            foreach (var span in spans[spanIndex])
+            {
+                if (startWithHash && !span.Pattern.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                if (startWithDot && !span.Pattern.StartsWith('.'))
+                {
+                    continue;
+                }
+
+                var pattern = span.Pattern;
+
+                var ranges = PatternRanges(pattern);
+                if (ranges.Count == 0)
+                {
+                    result += span.Cardinality * CheckPlus(spans, data, spanIndex + 1, datIndex, false, false);
+                }
+                else
+                {
+                    var head = ranges.Count - 1;
+                    
+                    if (datIndex + head >= data.Count)
+                    {
+                        continue;
+                    }
+                    for (int r = 0; r < head; r++)
+                    {
+                        if (datIndex + r == data.Count)
+                        {
+                            goto next;
+                        }
+
+                        if (ranges[r] != data[datIndex + r])
+                        {
+                            goto next;
+                        }
+                    }
+
+                    if (ranges.Last() > data[datIndex + head])
+                    {
+                        continue;
+                    }
+
+                    if (ranges.Last() == data[datIndex + head])
+                    {
+                        bool swd = pattern.EndsWith('#');
+                        
+                        result += span.Cardinality * CheckPlus(spans, data, spanIndex + 1, datIndex + head + 1, false, swd);
+                    }
+                    else if (pattern.EndsWith('#'))
+                    {
+                        data[datIndex + head] -= ranges.Last();
+                        result += span.Cardinality * CheckPlus(spans, data, spanIndex + 1, datIndex + head, true, false);
+                        data[datIndex + head] += ranges.Last();
+                    }
+                }
+                next: ;
+            }
+            return result;
+        }
+
+        private static List<Span> UnknownSpans(int unknownLen, char previous, char next)
+        {
+            var variants = new List<string>();
+
+            for (int mask = 0; mask < 1 << unknownLen; mask++)
+            {
+                var str = "" + previous;
+                for (int bit = 0; bit < unknownLen; bit++)
+                {
+                    if ((mask & (1 << bit)) == 0)
+                    {
+                        str += '.';
+                    }
+                    else
+                    {
+                        str += "#";
+                    }
+                }
+                str += next;
+                variants.Add(str);
+            }
+
+            var grouped = variants.GroupBy(v => String.Join('-',PatternRanges(v)));
+
+            return grouped
+                .Select(g =>
+                {
+                    var str = g.First();
+                    str = str.Substring(1, str.Length - 2);
+                    return new Span(str, g.Count());
+                })
+                .ToList();
+        }
+
+        private static List<int> PatternRanges(string str)
+        {
+            var ranges = new List<int>();
+
+            var len = 0;
+            for (var i = 0; i < str.Length; i++) 
+            {
+                if (str[i] == '#')
+                {
+                    len++;
+                    continue;
+                }
+
+                if (len > 0)
+                {
+                    ranges.Add(len);
+                    len = 0;
+                }
+            }
+
+            if (len > 0)
+            {
+                ranges.Add(len);
+            }
+
+            return ranges;
+        }
+
+
+        private static void Puzzle1(List<Record> records)
+        {
+            /*
+            var res = 0L;
+            foreach (var record in records)
+            {
+                res += CountArrangements(record);
+            }
+            Console.WriteLine($"Puzzle 1: {res} ");*/
 
             var descriptors = new List<Descriptor>();
 
             var res = 0L;
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = 0; i < records.Count; i++)
             {
-                descriptors.Add(new Descriptor(i, lines[i], 0, 0));
+                var record = records[i];
+                var springs = record.springs
+                              //+ "?" + record.springs + "?" + record.springs + "?" + record.springs + "?" + record.springs
+                              ;
+                var data = new List<int>();
+                data.AddRange(record.data);
+                //data.AddRange(record.data);
+                //data.AddRange(record.data);
+                //data.AddRange(record.data);
+                //data.AddRange(record.data);
+
+                descriptors.Add(new Descriptor(i, record.springs, springs, data));
             }
+
 
             long count = 0;
-
             Parallel.ForEach(descriptors, item =>
                 {
-                    var sw = new Stopwatch();
-                    sw.Start();
-                    item.matched = CountArrangements3(item.line);
-                    sw.Stop();
-                    item.time = sw.ElapsedMilliseconds;
+                    CountArrangements4(item);
+                    Console.WriteLine($"{count,3} - {item.lineNo,3} - {item.lineSource,-35} {item.matched,15}");
                     count++;
-                    if (sw.ElapsedMilliseconds > 1)
-                    {
-                        Console.WriteLine($"{count} - {item.lineNo} - {item.line} - {item.matched} - {item.time} - XXXXXXXXXXXXXXXXXXXXXX");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"{count} - {item.lineNo} - {item.line} - {item.matched} - {item.time} - cache");
-                    }
-                    
                 }
             );
-            Console.WriteLine(descriptors.Sum(item => item.matched));
+            Console.WriteLine($"Puzzle 1: {descriptors.Sum(item => item.matched)}");
         }
 
-        private static long CountArrangements3(string line)
+        private static long CountArrangements(Record record)
         {
-            if (cache.ContainsKey(line))
-            {
-                return cache[line];
-            }
-
-            var parts = line.Split(' ');
-            var springs = parts[0];
-            var d = parts[1].Split(",").Select(int.Parse).ToList();
-
-            springs = Simplify(springs + "?" + springs + "?" + springs + "?" + springs + "?" + springs);
-
-            var data = new List<int>();
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d);
-            data.AddRange(d); 
-
-            var strIndex = 0;
-            var datIndex = 0;
-
-            return DoCheck(springs.ToArray(), data.ToArray(), strIndex, datIndex, false, false);
-        }
-
-        private static long CountArrangements2(string line)
-        {
-            if (cache.ContainsKey(line))
-            {
-                return cache[line];
-            }
-
-            var parts = line.Split(' ');
-            var springs = parts[0];
-            var d = parts[1].Split(",").Select(int.Parse).ToList();
-
-            springs = Simplify(springs);
-
-            var data = new List<int>();
-            data.AddRange(d);
-            
-
-            var strIndex = 0;
-            var datIndex = 0;
-
-            return DoCheck(springs.ToArray(), data.ToArray(), strIndex, datIndex, false, false);
-        }
-
-        private static long DoCheck(char[] springs, int[] data, int strIndex, int datIndex, bool b, bool b1)
-        {
-            var exits = new int[data.Length];
-
-            var sum = 0;
-            for (var j = data.Length - 2; j >= 0; j--)
-            {
-                sum += data[j+1] + 1;
-                exits[j] = springs.Length - sum + 1;
-            }
-            exits[data.Length-1] = springs.Length;
-
-            return Check(ref springs, ref data, strIndex, datIndex, false, false, ref exits);
-        }
-
-        private static long Check(ref char[] springs, ref int[] data, int strIndex, int datIndex, bool hashExpected,
-            bool dotExpected, ref int[] exits)
-        {
-            if (strIndex == springs.Length)
-            {
-                if (datIndex == data.Length)
-                {
-                    if (hashExpected)
-                    {
-                        return 0;
-                    }
-                    else
-                        return 1;
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
-            if (datIndex < data.Length && strIndex > exits[datIndex])
-            {
-                return 0;
-            }
-
-
-            if (hashExpected && springs[strIndex] == '.')
-            {
-                return 0;
-            }
-
-            if (dotExpected && springs[strIndex] == '#')
-            {
-                return 0;
-            }
-
-            if (datIndex == data.Length)
-            {
-                for (var pos = strIndex; pos < springs.Length; pos++)
-                {
-                    if (springs[pos] == '#')
-                    {
-                        return 0;
-                    }
-                }
-            }
-
-            // skip dots
-            while (strIndex < springs.Length && springs[strIndex] == '.')
-            {
-                strIndex++;
-                dotExpected = false;
-            }
-
-            if (strIndex == springs.Length)
-            {
-                if (datIndex == data.Length)
-                {
-                    return 1;
-                }
-                else return 0;
-            }
-
-            
-
-            if (springs[strIndex] == '#')
-            {
-                var hashCount = 0;
-                while (strIndex < springs.Length && springs[strIndex] == '#')
-                {
-                    strIndex++;
-                    hashCount++;
-                }
-
-                if (hashCount > data[datIndex])
-                {
-                    return 0;
-                }
-
-                data[datIndex] -= hashCount;
-                var res = 0L;
-                if (data[datIndex] == 0)
-                {
-                    res = Check(ref springs, ref data, strIndex, datIndex + 1, false, true, ref exits);
-                }
-                else
-                {
-                    res = Check(ref springs, ref data, strIndex, datIndex, true, false, ref exits);
-                }
-
-                data[datIndex] += hashCount;
-                return res;
-            }
-
-            // ?
-
-            var result = 0L;
-            if (!dotExpected)
-            {
-                springs[strIndex] = '#';
-                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
-            }
-            if (!hashExpected)
-            {
-                springs[strIndex] = '.';
-                result += Check(ref springs, ref data, strIndex, datIndex, hashExpected, dotExpected, ref exits);
-            }
-            springs[strIndex] = '?';
-            return result;
-        }
-
-        private static string Simplify(string variant)
-        {
-            var newVar = variant.Replace("..", ".");
-            if (newVar != variant)
-            {
-                return Simplify(newVar);
-            }
-            else
-            {
-                return variant;
-            }
-        }
-
-        private static Dictionary<string, long> cache = new Dictionary<string, long>();
-
-        private static void Puzzle1(string[] lines)
-        {
-            var res = 0L;
-            foreach (var line in lines)
-            {
-                res += CountArrangements2(line);
-            }
-            Console.WriteLine(res);
-        }
-
-        private static long CountArrangements(string line)
-        {
-            var parts = line.Split(' ');
-            var springs = parts[0];
-            var data = parts[1].Split(",").Select(int.Parse).ToList();
+            var springs = record.springs;
+            var data = new List<int>(record.data);
 
             var unknowns = new List<int>();
             for (int i = 0; i < springs.Length; i++)
