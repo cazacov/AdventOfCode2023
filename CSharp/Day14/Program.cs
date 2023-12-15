@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
+﻿using System.Text;
 
 namespace Day14
 {
@@ -62,35 +60,6 @@ namespace Day14
             }
 
             Console.WriteLine($"Puzzle 2: {LoadOnNorth(map)}");
-        }
-
-
-        private static void RenderMap(State[,] map)
-        {
-            var maxY = map.GetLength(0);
-            var maxX = map.GetLength(1);
-
-            for (int y = 0; y < maxY; y++)
-            {
-                for (int x = 0; x < maxX; x++)
-                {
-                    switch (map[y, x])
-                    {
-                        case State.Empty:
-                            Console.Write('.');
-                            break;
-                        case State.Round:
-                            Console.Write('O');
-                            break;
-                        case State.Cube:
-                            Console.Write('#');
-                            break;
-                    }
-                }
-
-                Console.WriteLine();
-            }
-            Console.WriteLine();
         }
 
         private static string MapToString(State[,] map)
